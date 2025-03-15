@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Guntur</title>
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            background: #eee;
+            width:100%;
+            display: block;
+            margin: 10px auto;
+            border: 2px solid black;
+        }
+        button {
+            padding: 10px;
+            margin: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Game Tangkap Objek By Guntur</h1>
+    <p id="info">Score: 0</p>
+    <canvas id="gameCanvas"></canvas>
+    <br>
+    <button id="stopBtn">Pause</button>
+    <button id="continueBtn">Lanjut</button>
+    <button id="resetBtn">Reset</button>
+
+    <script>
+        class GameEngine {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext("2d");
+                this.canvas.width = 500;
+                this.canvas.height = 400;
+                this.isRunning = true;
+                this.isPaused = false;
+            }
+
+            drawObject(obj) {
+                this.ctx.fillStyle = obj.color;
+                if (obj.image) {
+                    this.ctx.drawImage(obj.image, obj.x, obj.y, obj.width, obj.height);
+                } else {
+                    this.ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+                }
+            }
+
+            makeCollision(obj1, obj2) {
+                return obj1.x < obj2.x + obj2.width &&
+                       obj1.x + obj1.width > obj2.x &&
+                       obj1.y < obj2.y + obj2.height &&
+                       obj1.y + obj1.height > obj2.y;
+            }
+
+            makeDraggable(obj, axis = "x") {
+                this.canvas.addEventListener("touchmove", (evt) => {
+                    let rect = this.canvas.getBoundingClientRect();
+                    let touchX = evt.touches[0].clientX - rect.left;
+
+                    if (axis === "x") {
+                        obj.x = touchX - obj.width / 2;
+                        obj.x = Math.max(0, Math.min(this.canvas.width - obj.width, obj.x));
+                    }
+                });
+            }
+
+            spawnFallingObject(config) {
+                return {
+                    x: Math.random() * (this.canvas.width - config.width),
+                    y: 0,
+                    width: config.width,
+                    height: config.height,
+                    color: config.color,
+                    speed: config.speed || 3
+                };
+            }
+
+            startGame(loopFunction) {
+                this.isRunning = true;
+                this.isPaused = false;
+                const gameLoop = () => {
+                    if (!this.isRunning || this.isPaused) return;
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    loopFunction();
+                    requestAnimationFrame(gameLoop);
+                };
+                gameLoop();
+            }
+
+            pauseGame() { this.isPaused = true; }
+            resumeGame(loopFunction) { if (this.isPaused) { this.isPaused = false; this.startGame(loopFunction); } }
+            resetGame(loopFunction) { this.isRunning = true; this.isPaused = false; this.startGame(loopFunction); }
+            get(id) { return document.getElementById(id); }
+            on(id, event, callback) { this.get(id).addEventListener(event, callback); }
+        }
+
+        // Game Setup
+        const game = new GameEngine("gameCanvas");
+        let score = 0;
+
+        // Load the player image
+        const playerImage = new Image();
+        playerImage.src = 'player.png'; // Make sure to replace this with the actual path to your image
+        let player = { x: 225, y: 300, width: 40, height: 40, image: playerImage };
+
+        let fallingObject = game.spawnFallingObject({ width: 30, height: 30, color: "blue", speed: 3 });
+
+        game.makeDraggable(player, "x");
+
+        function resetFallingObject() {
+            fallingObject = game.spawnFallingObject({ width: 30, height: 30, color: "blue", speed: 2 + Math.random() * 3 });
+        }
+
+        function gameLoop() {
+            game.drawObject(player);
+            game.drawObject(fallingObject);
+            fallingObject.y += fallingObject.speed;
+
+            if (game.makeCollision(player, fallingObject)) {
+                score++;
+                game.get("info").textContent = "Score: " + score;
+                resetFallingObject();
+            }
+
+            if (fallingObject.y > game.canvas.height) {
+                resetFallingObject();
+            }
+        }
+
+        game.startGame(gameLoop);
+
+        game.on("stopBtn", "click", () => game.pauseGame());
+        game.on("continueBtn", "click", () => game.resumeGame(gameLoop));
+        game.on("resetBtn", "click", () => {
+            score = 0;
+            game.get("info").textContent = "Score: " + score;
+            player.x = 225;
+            resetFallingObject();
+            game.resetGame(gameLoop);
+        });
+    </script>
+
+</body>
+</html>
